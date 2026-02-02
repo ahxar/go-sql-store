@@ -28,7 +28,7 @@ type ServerConfig struct {
 }
 
 func Load() (*Config, error) {
-	godotenv.Load()
+	_ = godotenv.Load()
 
 	cfg := &Config{
 		Database: DatabaseConfig{

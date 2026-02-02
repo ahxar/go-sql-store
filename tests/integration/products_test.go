@@ -104,7 +104,7 @@ func TestReserveStockNoWait(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Begin tx1: %v", err)
 	}
-	defer tx1.Rollback()
+	defer func() { _ = tx1.Rollback() }()
 
 	_, err = store.ReserveStock(ctx, tx1, product.ID, 5)
 	if err != nil {
@@ -115,7 +115,7 @@ func TestReserveStockNoWait(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Begin tx2: %v", err)
 	}
-	defer tx2.Rollback()
+	defer func() { _ = tx2.Rollback() }()
 
 	_, err = store.ReserveStockNoWait(ctx, tx2, product.ID, 3)
 	if err != database.ErrLockTimeout {
