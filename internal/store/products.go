@@ -201,7 +201,11 @@ func ListProducts(ctx context.Context, db *sql.DB, page, pageSize int) (*OffsetP
 	if err != nil {
 		return nil, fmt.Errorf("list products: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			return
+		}
+	}()
 
 	var products []models.Product
 	for rows.Next() {

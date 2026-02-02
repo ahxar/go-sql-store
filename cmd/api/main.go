@@ -23,7 +23,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Connect to database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Failed to close database: %v", err)
+		}
+	}()
 
 	log.Printf("Connected to database successfully")
 

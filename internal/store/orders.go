@@ -179,7 +179,11 @@ func GetOrder(ctx context.Context, db *sql.DB, id int64) (*models.Order, error) 
 	if err != nil {
 		return nil, fmt.Errorf("get order items: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			return
+		}
+	}()
 
 	var items []models.OrderItem
 	for rows.Next() {
@@ -226,7 +230,11 @@ func ListOrdersCursor(ctx context.Context, db *sql.DB, userID int64, cursor stri
 	if err != nil {
 		return nil, fmt.Errorf("list orders: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			return
+		}
+	}()
 
 	var orders []models.Order
 	for rows.Next() {

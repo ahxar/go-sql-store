@@ -149,11 +149,12 @@ func TestConcurrentOrderCreation(t *testing.T) {
 	insufficientStockCount := 0
 
 	for err := range results {
-		if err == nil {
+		switch err {
+		case nil:
 			successCount++
-		} else if err == database.ErrInsufficientStock {
+		case database.ErrInsufficientStock:
 			insufficientStockCount++
-		} else {
+		default:
 			t.Logf("Unexpected error: %v", err)
 		}
 	}
