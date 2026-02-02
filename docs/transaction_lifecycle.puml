@@ -1,0 +1,89 @@
+@startuml Transaction Lifecycle
+
+participant "Client" as C
+participant "Store Layer" as S
+participant "Transaction Manager" as TM
+participant "Database" as DB
+participant "Error Classifier" as EC
+
+== Successful Transaction ==
+C -> S: CreateOrder(ctx, db, request)
+S -> TM: WithRetry(ctx, db, opts, fn)
+TM -> DB: BEGIN (Serializable)
+activate DB
+TM -> S: Execute transaction function
+S -> DB: Lock products (FOR UPDATE NOWAIT)
+DB --> S: Products locked
+S -> DB: INSERT order
+S -> DB: INSERT order_items
+S -> DB: UPDATE products (decrement stock)
+S --> TM: Transaction successful
+TM -> DB: COMMIT
+deactivate DB
+TM --> S: Success
+S --> C: Order created
+
+== Transient Error with Retry ==
+C -> S: CreateOrder(ctx, db, request)
+S -> TM: WithRetry(ctx, db, opts, fn)
+TM -> DB: BEGIN (Serializable)
+activate DB
+TM -> S: Execute transaction function
+S -> DB: Lock products
+note right: Two transactions\ntry to lock same rows\nin different order
+DB --> S: Deadlock detected (40P01)
+S --> TM: Error returned
+TM -> DB: ROLLBACK
+deactivate DB
+TM -> EC: ClassifyError(err)
+EC --> TM: ErrorClassDeadlock (retryable)
+TM -> TM: Wait with exponential backoff + jitter
+
+TM -> DB: BEGIN (Retry #1)
+activate DB
+TM -> S: Execute transaction function
+S -> DB: Lock products
+DB --> S: Products locked
+S -> DB: INSERT order
+S -> DB: INSERT order_items
+S -> DB: UPDATE products
+S --> TM: Transaction successful
+TM -> DB: COMMIT
+deactivate DB
+TM --> S: Success (after retry)
+S --> C: Order created
+
+== Permanent Error ==
+C -> S: CreateOrder(ctx, db, request)
+S -> TM: WithRetry(ctx, db, opts, fn)
+TM -> DB: BEGIN
+activate DB
+TM -> S: Execute transaction function
+S -> DB: Lock products
+DB --> S: Products locked
+S -> S: Check stock quantity
+note right: Business logic\nvalidation failure
+S --> TM: ErrInsufficientStock
+TM -> DB: ROLLBACK
+deactivate DB
+TM -> EC: ClassifyError(err)
+EC --> TM: ErrorClassPermanent (no retry)
+TM --> S: Error (no retry attempted)
+S --> C: Error: insufficient stock
+
+== Context Timeout ==
+C -> S: CreateOrder(ctx, db, request)
+S -> TM: WithRetry(ctx, db, opts, fn)
+TM -> DB: BEGIN
+activate DB
+TM -> S: Execute transaction function
+S -> DB: Lock products (blocked)
+note right: Waiting for lock\nto be released
+TM -> TM: Check context
+TM --> TM: Context deadline exceeded
+TM -> DB: ROLLBACK
+deactivate DB
+TM --> S: Error: context deadline exceeded
+S --> C: Error: timeout
+
+@enduml
